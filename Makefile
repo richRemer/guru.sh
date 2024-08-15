@@ -10,6 +10,9 @@ default: build
 
 build: $(installer)
 
+install: $(installer)
+	./$<
+
 clean:
 	rm -rf $(tarball) $(installer)
 
