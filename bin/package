@@ -1,0 +1,43 @@
+#!/bin/bash -e
+
+declare script=${BASH_SOURCE}
+declare tarball=
+declare prefix=/usr/local
+declare output=installer
+declare tmpdir=$(mktemp -d); trap "rm -rf $tmpdir" EXIT
+declare extract=$(dirname "$script")/extract
+
+fail() {
+  echo "$1" >&2
+  return ${2:-1}
+}
+
+while test $# -gt 0; do
+  case "$1" in
+    --help)     echo "Usage: package [--prefix=<dir>] <tarball>"
+                exit;;
+    --output)   test $# -ge 2 || fail "option --output requires argument"
+                output="$2"; shift;;
+    --prefix)   test $# -ge 2 || fail "option --prefix requires argument"
+                prefix="$2"; shift;;
+    --output=*) output="${1:9}";;
+    --prefix=*) prefix="${1:9}";;
+    *)
+      test -z "$tarball" || fail "unexpected argument -- $1"
+      tarball="$1";;
+  esac
+  shift
+done
+
+if test -z "$tarball"; then
+  fail "missing required tarball argument"
+elif ! test -e "$extract"; then
+  fail "cannot find extract command"
+fi
+
+echo "$prefix" > $tmpdir/prefix
+cp "$tarball" $tmpdir/tarball
+tar cz -C $tmpdir prefix tarball | base64 > $tmpdir/payload
+cat "$extract" $tmpdir/payload > $tmpdir/installer
+chmod +x $tmpdir/installer
+mv $tmpdir/installer "$output"

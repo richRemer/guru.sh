@@ -1,0 +1,72 @@
+#!/bin/bash -e
+
+set -o pipefail
+
+declare tmpdir=$(mktemp -d); trap "rm -rf $tmpdir" EXIT
+declare -i line=$(awk '/^__PACKAGE_PAYLOAD__/ {print NR + 1; exit 0; }' $0)
+declare prefix=
+declare noop=1
+
+fail() {
+  echo "$1" >&2
+  return ${2:-1}
+}
+
+usage() {
+  local script=$BASH_SOURCE
+  local cmd=$(basename $script)
+
+  echo "Usage:"
+  echo "  $cmd [--prefix=<dir>]"
+  echo "  $cmd --help"
+}
+
+while test $# -gt 0; do
+  case "$1" in
+    --help)     usage; exit;;
+    --prefix)   prefix="$2"; shift;;
+    --prefix=*) prefix="${1:9}";;
+    *)          fail "unexpected argument -- $1";;
+  esac
+  shift
+done
+
+echo extracting package payload
+tail -n+$line $0 | base64 -d | tar xz -C $tmpdir/
+
+if test -f $tmpdir/prefix; then
+  if test -z "$prefix"; then
+    prefix=$(cat $tmpdir/prefix)
+    echo package provided prefix: $prefix
+  else
+    echo package provides prefix, but it is going to be ignored
+    echo user provided prefix: $prefix
+  fi
+fi
+
+if test -z "$prefix"; then
+  echo warning: could not determine prefix >&2
+  prefix=.
+fi
+
+if test -f $tmpdir/tarball; then
+  echo extracting tarball
+  tar xzvf $tmpdir/tarball -C "$prefix" \
+    | sed -e s@^@' - '"${prefix//@/\\@}"/@
+  noop=
+fi
+
+if test -f $tmpdir/run -a -x $tmpdir/run; then
+  echo executing post script
+  (cd "$prefix"; $tmpdir/run $tmpdir)
+  noop=
+fi
+
+if test -n "$noop"; then
+  echo warning: nothing to do >&2
+fi
+
+# explicitly exit so that additional data can be appended to file
+exit 0
+
+__PACKAGE_PAYLOAD__
