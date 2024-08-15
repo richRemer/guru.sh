@@ -1,0 +1,25 @@
+#!/bin/bash -e
+
+declare site="$1"
+declare file="/etc/nginx/sites-available/$site"
+declare link="/etc/nginx/sites-enabled/$site"
+declare target="../$site"
+
+fail () {
+  echo "$1" >&2
+  return ${2:-1}
+}
+
+if "$1" = --help; then
+  echo "Usage: nginx-dissite <site-name>"
+if test $# -eq 0; then
+  fail "missing argument -- site"
+elif test $# -gt 1; then
+  fail "unexpected argument -- $2"
+elif ! test -e "$file"; then
+  fail "site file not found -- $file"
+elif ! test -e "$link"; then
+  echo "nothing to do" >&2
+else
+  rm "$link"
+fi
